@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0f">
+    <meta name="description" content="Interactive Cubic Bézier Curve with Gyroscope Control - Mobile Version">
+    <title>Bézier Curve Physics | Mobile</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <style>
+        html, body {
+            touch-action: none;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        
+        .mobile-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: env(safe-area-inset-top, 12px) 16px 12px;
+            background: linear-gradient(to bottom, rgba(10, 10, 15, 0.95) 0%, transparent 100%);
+            z-index: 100;
+        }
+        
+        .mobile-logo { display: flex; align-items: center; gap: 8px; }
+        
+        .mobile-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .mobile-logo-text { font-weight: 600; font-size: 16px; }
+        .mobile-logo-text span { color: var(--accent-cyan); }
+        .mobile-actions { display: flex; gap: 8px; }
+        
+        .mobile-btn-sm {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .mobile-btn-sm:active {
+            transform: scale(0.95);
+            background: var(--accent-cyan);
+        }
+        
+        .gyro-indicator {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 12px) + 60px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+        
+        .gyro-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-orange);
+            animation: pulse 2s infinite;
+        }
+        
+        .gyro-dot.active { background: var(--accent-green); animation: none; }
+        .gyro-text { font-size: 12px; color: var(--text-secondary); }
+        
+        .mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+            background: linear-gradient(to top, rgba(10, 10, 15, 0.98) 0%, transparent 100%);
+            z-index: 100;
+        }
+        
+        .control-row { display: flex; justify-content: center; gap: 16px; margin-bottom: 16px; }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-accent);
+            color: var(--accent-cyan);
+            font-size: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn span { font-size: 9px; margin-top: 2px; color: var(--text-muted); }
+        
+        .control-btn:active {
+            transform: scale(0.95);
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+        }
+        
+        .control-btn:active span { color: var(--bg-primary); }
+        
+        .control-btn.primary {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            border: none;
+            color: white;
+        }
+        
+        .mode-indicator {
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+        
+        .mode-indicator strong { color: var(--accent-cyan); }
+        
+        .mobile-stats {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 12px) + 100px);
+            left: 16px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 12px;
+            z-index: 100;
+            min-width: 120px;
+        }
+        
+        .mobile-stats.hidden { display: none; }
+        
+        .mobile-stat { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; }
+        .mobile-stat-label { color: var(--text-muted); }
+        .mobile-stat-value { font-family: var(--font-mono); color: var(--text-primary); }
+        
+        .touch-point {
+            position: fixed;
+            width: 80px;
+            height: 80px;
+            border: 2px solid var(--accent-cyan);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 1000;
+        }
+        
+        .touch-point.visible {
+            opacity: 0.5;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .permission-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 15, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 32px;
+            text-align: center;
+        }
+        
+        .permission-overlay.hidden { display: none; }
+        
+        .permission-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 24px;
+        }
+        
+        .permission-title { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
+        
+        .permission-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            max-width: 300px;
+            line-height: 1.6;
+        }
+        
+        .permission-btn {
+            padding: 16px 48px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+        
+        .permission-skip {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Bézier Engine...</div>
+    </div>
+    
+    <div class="permission-overlay" id="permissionOverlay">
+        <div class="permission-icon">🔄</div>
+        <h2 class="permission-title">Enable Motion Sensors</h2>
+        <p class="permission-text">
+            This app uses your device's gyroscope to create an immersive physics experience. 
+            The curve will respond to how you tilt and move your device!
+        </p>
+        <button class="permission-btn" id="enableGyroBtn">Enable Gyroscope</button>
+        <button class="permission-skip" id="skipGyroBtn">Use Touch Controls Instead</button>
+    </div>
+    
+    <div class="touch-point" id="touchPoint"></div>
+    
+    <main class="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+        
+        <header class="mobile-header">
+            <div class="mobile-logo">
+                <div class="mobile-logo-icon">B</div>
+                <div class="mobile-logo-text"><span>Bézier</span></div>
+            </div>
+            <div class="mobile-actions">
+                <button class="mobile-btn-sm" id="toggleStats" title="Toggle Stats">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18 17V9"/>
+                        <path d="M13 17V5"/>
+                        <path d="M8 17v-3"/>
+                    </svg>
+                </button>
+                <button class="mobile-btn-sm" id="resetBtn" title="Reset">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+        
+        <div class="gyro-indicator" id="gyroIndicator">
+            <div class="gyro-dot" id="gyroDot"></div>
+            <span class="gyro-text" id="gyroText">Gyroscope: Inactive</span>
+        </div>
+        
+        <div class="mobile-stats hidden" id="mobileStats">
+            <div class="mobile-stat">
+                <span class="mobile-stat-label">FPS</span>
+                <span class="mobile-stat-value" id="fpsValue">60</span>
+            </div>
+            <div class="mobile-stat">
+                <span class="mobile-stat-label">Mode</span>
+                <span class="mobile-stat-value" id="modeValue">Gyro</span>
+            </div>
+            <div class="mobile-stat">
+                <span class="mobile-stat-label">Beta</span>
+                <span class="mobile-stat-value" id="betaValue">0°</span>
+            </div>
+            <div class="mobile-stat">
+                <span class="mobile-stat-label">Gamma</span>
+                <span class="mobile-stat-value" id="gammaValue">0°</span>
+            </div>
+        </div>
+        
+        <div class="mobile-controls">
+            <div class="control-row">
+                <button class="control-btn" id="presetBouncy" title="Bouncy">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M8 12a4 4 0 1 0 8 0"/>
+                    </svg>
+                    <span>Bouncy</span>
+                </button>
+                <button class="control-btn primary" id="modeToggle" title="Toggle Mode">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4"/>
+                        <path d="M12 18v4"/>
+                        <path d="M4.93 4.93l2.83 2.83"/>
+                        <path d="M16.24 16.24l2.83 2.83"/>
+                        <path d="M2 12h4"/>
+                        <path d="M18 12h4"/>
+                        <path d="M4.93 19.07l2.83-2.83"/>
+                        <path d="M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                </button>
+                <button class="control-btn" id="presetSmooth" title="Smooth">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <span>Smooth</span>
+                </button>
+            </div>
+            <div class="control-row">
+                <button class="control-btn" id="presetStiff" title="Stiff">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    </svg>
+                    <span>Stiff</span>
+                </button>
+                <button class="control-btn" id="toggleTangents" title="Tangents">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 12h6"/>
+                        <path d="M16 12h6"/>
+                        <path d="M12 2v20"/>
+                    </svg>
+                    <span>Tangent</span>
+                </button>
+                <button class="control-btn" id="presetLoose" title="Loose">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 3c-1.5 1.5-3 3-3 6s1.5 4.5 3 6 3 4.5 3 6"/>
+                    </svg>
+                    <span>Loose</span>
+                </button>
+            </div>
+            <div class="mode-indicator" id="modeIndicator">
+                Control: <strong id="currentMode">Gyroscope</strong> | Tap and hold to drag points
+            </div>
+        </div>
+    </main>
+    
+    <script src="js/utils.js"></script>
+    <script src="js/bezier-math.js"></script>
+    <script src="js/mobile.js"></script>
+</body>
+</html>

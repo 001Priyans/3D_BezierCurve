@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive Cubic Bézier Curve with Spring Physics - Desktop Version">
+    <title>Bézier Curve Physics | Desktop</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <style>
+        .canvas-container { cursor: none; }
+        
+        .custom-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--accent-cyan);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease, border-color 0.2s ease;
+            mix-blend-mode: difference;
+        }
+        
+        .custom-cursor.dragging {
+            transform: translate(-50%, -50%) scale(1.5);
+            border-color: var(--accent-magenta);
+        }
+        
+        .custom-cursor-dot {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+        }
+        
+        .curve-info {
+            position: absolute;
+            bottom: var(--spacing-md);
+            right: var(--spacing-md);
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            backdrop-filter: blur(10px);
+            z-index: var(--z-controls);
+            min-width: 200px;
+        }
+        
+        .math-display {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.3);
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            margin-top: var(--spacing-sm);
+            line-height: 1.6;
+        }
+        
+        .math-display .highlight { color: var(--accent-cyan); }
+        .info-divider { height: 1px; background: var(--border-subtle); margin: 8px 0; }
+        
+        .info-toggle { cursor: pointer; user-select: none; }
+        .info-toggle:hover {
+            background: rgba(255, 255, 255, 0.05);
+            margin: 0 -12px;
+            padding: 4px 12px;
+            border-radius: 4px;
+        }
+        
+        .toggle-arrow { transition: transform 0.2s ease; }
+        .toggle-arrow.collapsed { transform: rotate(-90deg); }
+        
+        .stats-collapse {
+            overflow: hidden;
+            max-height: 200px;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 1;
+        }
+        
+        .stats-collapse.collapsed { max-height: 0; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Bézier Engine...</div>
+    </div>
+    
+    <div class="custom-cursor" id="customCursor"></div>
+    <div class="custom-cursor-dot" id="customCursorDot"></div>
+    
+    <header class="header-bar">
+        <div class="logo">
+            <div class="logo-icon">B</div>
+            <div class="logo-text"><span>Bézier</span> Physics</div>
+        </div>
+        <div class="header-controls">
+            <div class="view-selector" id="viewSelector">
+                <button class="view-option active" data-view="curve">Curve</button>
+                <button class="view-option" data-view="analysis">Analysis</button>
+                <button class="view-option" data-view="minimal">Minimal</button>
+            </div>
+            <button class="btn btn-secondary btn-icon" id="togglePanel" title="Toggle Controls (P)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>
+                </svg>
+            </button>
+            <button class="btn btn-primary" id="resetBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                </svg>
+                Reset
+            </button>
+        </div>
+    </header>
+    
+    <main class="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+        
+        <div class="info-overlay" id="infoOverlay">
+            <div class="info-item">
+                <span class="info-label">FPS</span>
+                <span class="info-value" id="fpsDisplay">60</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Mouse</span>
+                <span class="info-value" id="mouseDisplay">0, 0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Mode</span>
+                <span class="info-value" id="modeDisplay">Follow</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Arc Length</span>
+                <span class="info-value" id="arcLengthDisplay">0 px</span>
+            </div>
+            <div class="info-divider"></div>
+            <div class="info-item info-toggle" id="statsToggle">
+                <span class="info-label">Physics Stats</span>
+                <span class="info-value toggle-arrow" id="statsArrow">▼</span>
+            </div>
+            <div class="stats-collapse" id="statsCollapse">
+                <div class="info-item">
+                    <span class="info-label">P1 Velocity</span>
+                    <span class="info-value" id="p1VelocityStat">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">P2 Velocity</span>
+                    <span class="info-value" id="p2VelocityStat">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">P1 Energy</span>
+                    <span class="info-value" id="p1EnergyStat">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">P2 Energy</span>
+                    <span class="info-value" id="p2EnergyStat">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <aside class="control-panel" id="controlPanel">
+            <div class="panel-header">
+                <span class="panel-title">Controls</span>
+                <button class="panel-close" id="panelClose">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="panel-content">
+                <div class="control-section">
+                    <h3 class="section-title">Spring Physics</h3>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Stiffness (k)
+                            <span class="control-value" id="stiffnessValue">150</span>
+                        </label>
+                        <input type="range" id="stiffnessSlider" min="10" max="500" value="150">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Damping (c)
+                            <span class="control-value" id="dampingValue">12</span>
+                        </label>
+                        <input type="range" id="dampingSlider" min="1" max="50" value="12">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Mass
+                            <span class="control-value" id="massValue">1.0</span>
+                        </label>
+                        <input type="range" id="massSlider" min="0.1" max="5" step="0.1" value="1">
+                    </div>
+                    
+                    <div class="preset-grid">
+                        <button class="preset-btn" data-preset="bouncy">Bouncy</button>
+                        <button class="preset-btn active" data-preset="smooth">Smooth</button>
+                        <button class="preset-btn" data-preset="stiff">Stiff</button>
+                        <button class="preset-btn" data-preset="loose">Loose</button>
+                        <button class="preset-btn" data-preset="heavy">Heavy</button>
+                        <button class="preset-btn" data-preset="snappy">Snappy</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3 class="section-title">Visualization</h3>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Curve Resolution
+                            <span class="control-value" id="resolutionValue">100</span>
+                        </label>
+                        <input type="range" id="resolutionSlider" min="10" max="200" value="100">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Tangent Count
+                            <span class="control-value" id="tangentCountValue">10</span>
+                        </label>
+                        <input type="range" id="tangentCountSlider" min="0" max="30" value="10">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Tangent Length
+                            <span class="control-value" id="tangentLengthValue">40</span>
+                        </label>
+                        <input type="range" id="tangentLengthSlider" min="10" max="100" value="40">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">
+                            Curve Width
+                            <span class="control-value" id="curveWidthValue">3</span>
+                        </label>
+                        <input type="range" id="curveWidthSlider" min="1" max="10" value="3">
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3 class="section-title">Display Options</h3>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Show Grid</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="showGrid" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Show Control Handles</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="showHandles" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Show Tangent Lines</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="showTangents" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Show Control Points</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="showPoints" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Glow Effects</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="showGlow" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="toggle-container">
+                        <span class="toggle-label">Gradient Curve</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="gradientCurve" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3 class="section-title">Colors</h3>
+                    
+                    <div class="color-picker-group">
+                        <div class="color-swatch">
+                            <input type="color" id="curveColor1" value="#00d4ff">
+                        </div>
+                        <span class="color-label">Curve Start</span>
+                    </div>
+                    
+                    <div class="color-picker-group" style="margin-top: 8px;">
+                        <div class="color-swatch">
+                            <input type="color" id="curveColor2" value="#ff00aa">
+                        </div>
+                        <span class="color-label">Curve End</span>
+                    </div>
+                    
+                    <div class="color-picker-group" style="margin-top: 8px;">
+                        <div class="color-swatch">
+                            <input type="color" id="tangentColor" value="#ff8800">
+                        </div>
+                        <span class="color-label">Tangent Lines</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <div class="curve-info" id="curveInfo">
+            <div class="section-title" style="margin-bottom: 8px;">Bézier Mathematics</div>
+            <div class="math-display">
+                <span class="highlight">B(t)</span> = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃<br>
+                <span class="highlight">B'(t)</span> = 3(1-t)²(P₁-P₀) + 6(1-t)t(P₂-P₁) + 3t²(P₃-P₂)
+            </div>
+        </div>
+        
+        <div class="shortcuts-hint">
+            <div class="shortcut"><kbd>R</kbd> Reset</div>
+            <div class="shortcut"><kbd>P</kbd> Panel</div>
+            <div class="shortcut"><kbd>G</kbd> Grid</div>
+            <div class="shortcut"><kbd>T</kbd> Tangents</div>
+            <div class="shortcut"><kbd>D</kbd> Drag Mode</div>
+            <div class="shortcut"><kbd>Space</kbd> Pause</div>
+        </div>
+    </main>
+    
+    <script src="js/utils.js"></script>
+    <script src="js/bezier-math.js"></script>
+    <script src="js/desktop.js"></script>
+</body>
+</html>
